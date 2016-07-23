@@ -26,8 +26,6 @@ import (
 	info "github.com/google/cadvisor/info/v1"
 )
 
-const WatchInterval = 3 * time.Second
-
 type hyperContainerHandler struct {
 	name               string
 	id                 string
@@ -306,8 +304,8 @@ func (self *hyperContainerHandler) ListContainers(listType container.ListType) (
 
 	ret := make([]info.ContainerReference, 0, len(containers))
 	for _, c := range containers {
-		if c.podID == self.podID {
-			cotainerName := "/hyper/" + c.containerID
+		if c.PodID == self.podID {
+			cotainerName := "/hyper/" + c.ContainerID
 			self.containers[cotainerName] = cotainerName
 			ret = append(ret, info.ContainerReference{
 				Name:      cotainerName,
@@ -327,78 +325,18 @@ func (self *hyperContainerHandler) ListProcesses(listType container.ListType) ([
 	return nil, nil
 }
 
-func (self *hyperContainerHandler) WatchSubcontainers(events chan container.SubcontainerEvent) error {
-	// Disable subcontainers watcher since we can't fetch container data now
-	if self != nil {
-		return nil
-	}
-
-	timer := time.NewTimer(WatchInterval)
-	if !self.isPod {
-		return nil
-	}
-
-	go func(self *hyperContainerHandler) {
-		for {
-			select {
-			case <-self.stopWatcher:
-				self.stopWatcher <- nil
-				return
-			case <-timer.C:
-				containers, err := self.client.ListContainers()
-				if err != nil {
-					glog.Errorf("Error list hyper containers: %v", err)
-					continue
-				}
-
-				newContainerMap := make(map[string]string)
-				for _, c := range containers {
-					if c.podID != self.podID {
-						continue
-					}
-
-					containerName := "/hyper/" + c.containerID
-					newContainerMap[containerName] = containerName
-
-					if _, ok := self.containers[containerName]; !ok {
-						self.containers[containerName] = containerName
-						// Deliver the event.
-						events <- container.SubcontainerEvent{
-							EventType: container.SubcontainerAdd,
-							Name:      containerName,
-						}
-					}
-				}
-
-				for k := range self.containers {
-					if _, ok := newContainerMap[k]; !ok {
-						delete(self.containers, k)
-						// Deliver the event.
-						events <- container.SubcontainerEvent{
-							EventType: container.SubcontainerDelete,
-							Name:      k,
-						}
-					}
-				}
-			}
-		}
-	}(self)
-
-	return nil
-}
-
-func (self *hyperContainerHandler) StopWatchingSubcontainers() error {
-	// Rendezvous with the watcher thread.
-	self.stopWatcher <- nil
-	return <-self.stopWatcher
-}
-
 func (self *hyperContainerHandler) GetCgroupPath(resource string) (string, error) {
 	return "", fmt.Errorf("CgroupPath is not supported for Hyper container deriver")
 }
 
 func (self *hyperContainerHandler) GetContainerLabels() map[string]string {
 	return map[string]string{}
+}
+
+func (self *hyperContainerHandler) GetContainerIPAddress() string {
+	// TODO(harry) attempt to return the ip address of the pod
+	// if a specific ip address of the pod could not be determined, return the system ip address
+	return "127.0.0.1"
 }
 
 func (self *hyperContainerHandler) Exists() bool {
@@ -412,3 +350,13 @@ func (self *hyperContainerHandler) Exists() bool {
 
 // Nothing to start up.
 func (self *hyperContainerHandler) Start() {}
+
+func (self *hyperContainerHandler) StopWatchingSubcontainers() error {
+	// Rendezvous with the watcher thread.
+	self.stopWatcher <- nil
+	return <-self.stopWatcher
+}
+
+func (self *hyperContainerHandler) Type() container.ContainerType {
+	return container.ContainerTypeHyper
+}

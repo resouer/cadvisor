@@ -1,5 +1,39 @@
 # Changelog
 
+### 0.23.2 (2016-05-18)
+- Final release for Kubernetes 1.3
+- Handle kernel log rotation
+- More rkt support: poll rkt service for new containers
+- Better handling of partial failures when fetching subcontainers
+- Devicemapper thin_ls support (requires Device Mapper kernel module and supporting utilities)
+
+### 0.23.1 (2016-05-11)
+- Add multi-container charts to the UI
+- Add TLS options for Kafka storage driver
+- Switch to official Docker client
+- Systemd:
+  - Ignore .mount cgroups on systemd
+  - Better OOM monitoring
+- Bug: Fix broken -disable_metrics flag
+- Bug: Fix openstack identified as AWS
+- Bug: Fix EventStore when limit is 0
+
+### 0.23.0 (2016-04-21)
+- Docker v1.11 support
+- Preliminary rkt support
+- Bug: Fix file descriptor leak
+
+### 0.22.0 (2016-02-25)
+- Disk usage calculation bug fixes
+- Systemd integration bug fixes
+- Instance ID support for Azure and AWS
+- Limit number of custom metrics
+- Support opt out for disk and network metrics
+
+### 0.21.0 (2016-02-03)
+- Support for filesystem stats with docker v1.10
+- Bug fixes.
+
 ### 0.20.5 (2016-01-27)
 - Breaking: Use uint64 for memory stats
 - Bug: Fix devicemapper partition labelling
