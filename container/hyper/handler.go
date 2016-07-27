@@ -412,3 +412,7 @@ func (self *hyperContainerHandler) Exists() bool {
 
 // Nothing to start up.
 func (self *hyperContainerHandler) Start() {}
+
+func (self *hyperContainerHandler) Type() container.ContainerType {
+	return container.ContainerTypeHyper
+}

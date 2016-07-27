@@ -27,6 +27,16 @@ const (
 	ListRecursive
 )
 
+type ContainerType int
+
+const (
+	ContainerTypeRaw ContainerType = iota
+	ContainerTypeDocker
+	ContainerTypeRkt
+	ContainerTypeHyper
+	ContainerTypeSystemd
+)
+
 // SubcontainerEventType indicates an addition or deletion event.
 type SubcontainerEventType int
 
@@ -58,17 +68,8 @@ type ContainerHandler interface {
 	// Returns the subcontainers of this container.
 	ListContainers(listType ListType) ([]info.ContainerReference, error)
 
-	// Returns the threads inside this container.
-	ListThreads(listType ListType) ([]int, error)
-
 	// Returns the processes inside this container.
 	ListProcesses(listType ListType) ([]int, error)
-
-	// Registers a channel to listen for events affecting subcontainers (recursively).
-	WatchSubcontainers(events chan SubcontainerEvent) error
-
-	// Stops watching for subcontainer changes.
-	StopWatchingSubcontainers() error
 
 	// Returns absolute cgroup path for the requested resource.
 	GetCgroupPath(resource string) (string, error)
@@ -85,4 +86,9 @@ type ContainerHandler interface {
 	// Start starts any necessary background goroutines - must be cleaned up in Cleanup().
 	// It is expected that most implementations will be a no-op.
 	Start()
+
+	// Type of handler
+	Type() ContainerType
+
+	WatchSubcontainers(events chan SubcontainerEvent) error
 }
