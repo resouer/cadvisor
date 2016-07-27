@@ -63,6 +63,7 @@ func (self *hyperFactory) CanHandleAndAccept(name string) (bool, bool, error) {
 
 	_, err := isHyperVirtualMachine(name)
 	if err != nil {
+		glog.Errorf("isHyperVirtualMachine of hyperFactory failed: %v", err)
 		return false, false, nil
 	}
 

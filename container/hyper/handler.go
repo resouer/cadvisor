@@ -18,12 +18,14 @@ package hyper
 import (
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/golang/glog"
 	"github.com/google/cadvisor/container"
 	"github.com/google/cadvisor/fs"
 	info "github.com/google/cadvisor/info/v1"
+	"github.com/google/cadvisor/manager/watcher"
 )
 
 const WatchInterval = 3 * time.Second
@@ -46,6 +48,8 @@ type hyperContainerHandler struct {
 
 	// Time at which this container was created.
 	creationTime time.Time
+
+	sync.Mutex
 }
 
 func newHyperContainerHandler(
@@ -305,6 +309,9 @@ func (self *hyperContainerHandler) ListContainers(listType container.ListType) (
 	}
 
 	ret := make([]info.ContainerReference, 0, len(containers))
+	// lock to protect containers map
+	self.Lock()
+	defer self.Unlock()
 	for _, c := range containers {
 		if c.PodID == self.podID {
 			cotainerName := "/hyper/" + c.ContainerID
@@ -317,6 +324,68 @@ func (self *hyperContainerHandler) ListContainers(listType container.ListType) (
 	}
 
 	return ret, nil
+}
+
+func (self *hyperContainerHandler) WatchSubcontainers(events chan watcher.ContainerEvent) error {
+	// Disable subcontainers watcher since we can't fetch container data now
+	if self != nil {
+		return nil
+	}
+
+	timer := time.NewTimer(WatchInterval)
+	if !self.isPod {
+		return nil
+	}
+
+	go func(self *hyperContainerHandler) {
+		for {
+			select {
+			case <-self.stopWatcher:
+				self.stopWatcher <- nil
+				return
+			case <-timer.C:
+				containers, err := self.client.ListContainers()
+				if err != nil {
+					glog.Errorf("Error list hyper containers: %v", err)
+					continue
+				}
+
+				newContainerMap := make(map[string]string)
+				for _, c := range containers {
+					if c.PodID != self.podID {
+						continue
+					}
+
+					containerName := "/hyper/" + c.ContainerID
+					newContainerMap[containerName] = containerName
+
+					if _, ok := self.containers[containerName]; !ok {
+						self.containers[containerName] = containerName
+						// Deliver the event.
+						events <- watcher.ContainerEvent{
+							EventType:   watcher.ContainerAdd,
+							Name:        containerName,
+							WatchSource: watcher.Hyper,
+						}
+					}
+				}
+
+				for k := range self.containers {
+					if _, ok := newContainerMap[k]; !ok {
+						delete(self.containers, k)
+						// Deliver the event.
+						events <- watcher.ContainerEvent{
+							EventType:   watcher.ContainerDelete,
+							Name:        k,
+							WatchSource: watcher.Hyper,
+						}
+					}
+				}
+			}
+		}
+	}(self)
+
+	return nil
 }
 
 func (self *hyperContainerHandler) ListThreads(listType container.ListType) ([]int, error) {

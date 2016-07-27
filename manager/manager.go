@@ -1117,6 +1117,15 @@ func (self *manager) watchForNewContainers(quit chan error) error {
 					// the Rkt and Raw watchers can race, and if Raw wins, we want Rkt to override and create a new handler for Rkt containers
 					case watcher.Rkt:
 						err = self.overrideContainer(event.Name, event.WatchSource)
+					case watcher.Hyper:
+						// Hyper watcher sends VmName to channel , we need to convert it to cgroup name.
+						cgroupName, err := self.hyperPodToCgroup(event.Name)
+						if err != nil {
+							glog.Errorf("Got error: %v when convert vmName to cgroup name, skipping ...", err)
+							continue
+						}
+						// the Hyper and Raw watchers can also race.
+						err = self.overrideContainer(cgroupName, event.WatchSource)
 					default:
 						err = self.createContainer(event.Name, event.WatchSource)
 					}
@@ -1148,6 +1157,18 @@ func (self *manager) watchForNewContainers(quit chan error) error {
 		}
 	}()
 	return nil
+}
+
+// Convert VmName of Pod to cgroup name is like: /machine.slice/machine-qemu\\x2d10\\x2dvm\\x2dEnwLdYJQRM.scope
+func (self *manager) hyperPodToCgroup(vmName string) (string, error) {
+	// convert vm-EnwLdYJQRM to vm\\x2dEnwLdYJQRM
+	vmName = strings.Replace(vmName, "-", "\\x2d", -1)
+	for namespacedContainerName, _ := range self.containers {
+		if strings.Contains(namespacedContainerName.Name, vmName) {
+			return namespacedContainerName.Name, nil
+		}
+	}
+	return "", fmt.Errorf("Can't find vmName %s in manager.containers ", vmName)
 }
 
 func (self *manager) watchForNewOoms() error {
